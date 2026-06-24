@@ -1,0 +1,75 @@
+:root {
+  --bg: #0f1115;
+  --panel: #171a21;
+  --line: #2a2f3a;
+  --text: #e6e8ec;
+  --muted: #9aa3b2;
+  --accent: #5b8cff;
+  --gut: #46c787;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+#app { max-width: 560px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; }
+
+/* Kopf + Fortschritt */
+.top { padding: 16px 18px 8px; }
+.top .zeile { display: flex; justify-content: space-between; align-items: baseline; }
+.top .titel { font-weight: 700; }
+.top .zaehler { color: var(--muted); font-size: 14px; }
+.bar { height: 6px; background: var(--line); border-radius: 99px; margin-top: 10px; overflow: hidden; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s; }
+
+.screen { flex: 1; display: flex; flex-direction: column; padding: 8px 18px 18px; }
+
+/* Start */
+.start { justify-content: center; text-align: center; gap: 16px; }
+.start h1 { font-size: 30px; margin: 0; }
+.start p { color: var(--muted); margin: 0; }
+
+/* Übung */
+.bild { position: relative; width: 100%; aspect-ratio: 1/1; max-height: 46vh; margin: 4px auto 14px; }
+.bild .frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
+.bild .f1 { animation: lauf 3s infinite; }
+.bild .f2 { animation: lauf 3s infinite; animation-delay: 1s; }
+.bild .f3 { animation: lauf 3s infinite; animation-delay: 2s; }
+@keyframes lauf { 0%{opacity:1} 28%{opacity:1} 36%{opacity:0} 100%{opacity:0} }
+
+.uname { font-size: 22px; font-weight: 700; }
+.muster { color: var(--muted); font-size: 14px; margin-top: 2px; }
+.ziel { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0; font-size: 15px; }
+.ziel span { color: var(--muted); }
+.ziel b { color: var(--text); font-weight: 600; }
+.hinweis { background: rgba(91,140,255,.1); border: 1px solid var(--accent); border-radius: 12px; padding: 10px 14px; font-size: 14px; margin: 0 0 12px; }
+ul.cues { margin: 6px 0 16px; padding-left: 20px; color: var(--text); }
+ul.cues li { margin: 4px 0; }
+
+/* Eingabe */
+.eingabe { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: auto; }
+.feld { display: flex; flex-direction: column; gap: 6px; }
+.feld label { color: var(--muted); font-size: 13px; }
+.feld input {
+  background: var(--panel); color: var(--text); border: 1px solid var(--line);
+  border-radius: 12px; padding: 14px; font-size: 18px; width: 100%;
+}
+.feld input:focus { outline: none; border-color: var(--accent); }
+
+/* Knöpfe */
+.knoepfe { display: flex; gap: 12px; margin-top: 16px; }
+button { font: inherit; cursor: pointer; border-radius: 12px; padding: 15px; border: 1px solid var(--line); }
+.btn-zurueck { background: transparent; color: var(--muted); flex: 0 0 96px; }
+.btn-weiter { background: var(--accent); color: #fff; border: none; flex: 1; font-weight: 700; font-size: 17px; }
+.btn-gross { background: var(--accent); color: #fff; border: none; font-weight: 700; font-size: 18px; padding: 16px 28px; border-radius: 14px; }
+
+/* Zusammenfassung */
+.summe { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 18px; }
+.zeile-uebung { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; justify-content: space-between; gap: 10px; }
+.zeile-uebung .n { font-weight: 600; }
+.zeile-uebung .w { color: var(--accent); font-weight: 700; white-space: nowrap; }
+.zeile-uebung .w small { color: var(--muted); font-weight: 400; }
+.fertig-kopf { text-align: center; margin: 10px 0 4px; }
+.fertig-kopf .haken { font-size: 40px; color: var(--gut); }

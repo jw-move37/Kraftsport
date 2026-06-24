@@ -1,0 +1,139 @@
+'use strict';
+
+// Kraftsport — kleine Trainings-App (PWA). Eine Übung nach der anderen:
+// Bild + Erklärung, Gewicht und Wiederholungen eintragen, weiter zur nächsten.
+
+const UEBUNGEN = [
+  { id: 'goblet', name: 'Goblet Squat', muster: 'Knie, bilateral',
+    ziel: '3 × 12–15', pause: '75 s', gewicht: '16–18 kg/Hand',
+    cues: ['Eine Hantel eng vor der Brust', 'Oberschenkel parallel zum Boden', 'Rücken aufrecht'] },
+  { id: 'rdl', name: 'RDL (Rumänisches Kreuzheben)', muster: 'Hüfte / hintere Kette',
+    ziel: '3 × 8–12', pause: '90 s', gewicht: '16–20 kg/Hand',
+    cues: ['Hüfte nach hinten schieben', 'Rücken gerade halten', 'Hanteln dicht am Schienbein'] },
+  { id: 'bulgarian', name: 'Bulgarian Split Squat', muster: 'Knie, unilateral',
+    ziel: '3 × 8–12 / Bein', pause: '75 s', gewicht: '12–14 kg/Hand',
+    cues: ['Hinterer Fuß erhöht (Box)', 'Vorderes Knie tief beugen', 'Oberkörper leicht nach vorn'] },
+  { id: 'rudern', name: 'Rudern zweiarmig vorgebeugt', muster: 'Zug horizontal',
+    ziel: '3 × 8–12', pause: '75 s', gewicht: '14–16 kg/Hand',
+    cues: ['Etwa 45° vorgebeugt', 'Hanteln zur Hüfte ziehen', 'Ellbogen nah am Körper'] },
+  { id: 'lat', name: 'Lat-Pulldown (Band über Ast)', muster: 'Zug vertikal',
+    ziel: '3 × bis Spannungsversagen', pause: '60 s', gewicht: 'Band',
+    hinweis: 'Jetzt auf das leichte Paar umstecken (~7 kg/Hand).',
+    cues: ['Stehend leicht vorgebeugt', 'Band zur oberen Brust ziehen', 'Ellbogen nach unten/hinten'] },
+  { id: 'liege', name: 'Liegestütze', muster: 'Druck horizontal',
+    ziel: '3 × ~2 Wdh vor Versagen', pause: '60 s', gewicht: 'Körpergewicht',
+    cues: ['Gerade Linie Kopf bis Ferse', 'Körper fest, nicht durchhängen'] },
+  { id: 'schulter', name: 'Schulterdrücken', muster: 'Druck vertikal',
+    ziel: '3 × 8–12 (oder 15–20 bei 7 kg)', pause: '60 s', gewicht: '9–11 kg/Hand (bzw. 7)',
+    cues: ['Von Schulterhöhe nach oben drücken', 'Rumpf fest, nicht ins Hohlkreuz'] },
+  { id: 'seit', name: 'Seitheben', muster: 'Isolation Schulter',
+    ziel: '2 × 15–20', pause: '45 s', gewicht: '6–7 kg/Hand',
+    cues: ['Arme seitlich auf Schulterhöhe', 'Ellbogen leicht gebeugt'] },
+];
+
+const app = document.getElementById('app');
+let screen = 'start';
+let eintraege = ladeEntwurf();
+
+function ladeEntwurf() {
+  try { return JSON.parse(localStorage.getItem('kraftsport_entwurf')) || {}; } catch (e) { return {}; }
+}
+function speichereEntwurf() {
+  localStorage.setItem('kraftsport_entwurf', JSON.stringify(eintraege));
+}
+
+function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function kopf(idx) {
+  const pct = Math.round((idx / UEBUNGEN.length) * 100);
+  return `<div class="top">
+    <div class="zeile"><span class="titel">Kraftsport</span><span class="zaehler">Übung ${idx + 1} / ${UEBUNGEN.length}</span></div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+  </div>`;
+}
+
+function render() {
+  app.innerHTML = '';
+  if (screen === 'start') return renderStart();
+  if (screen === 'fertig') return renderFertig();
+  renderUebung(screen);
+}
+
+function renderStart() {
+  app.appendChild(el(`<div class="screen start">
+    <div>
+      <h1>Kraftsport</h1>
+      <p>8 Übungen, jeden 2. Tag.</p>
+    </div>
+    <p>Aufwärmen 5 min: locker einlaufen, Bein-/Hüft-/Armkreisen, ein paar Kniebeugen ohne Gewicht.</p>
+    <div><button class="btn-gross" id="los">Los geht's</button></div>
+  </div>`));
+  document.getElementById('los').onclick = () => { screen = 0; render(); };
+}
+
+function renderUebung(i) {
+  const u = UEBUNGEN[i];
+  const e = eintraege[u.id] || {};
+  app.appendChild(el(kopf(i)));
+  const s = el(`<div class="screen">
+    <div class="bild">
+      <img class="frame f1" src="bilder/${u.id}-anfang.png" alt="">
+      <img class="frame f2" src="bilder/${u.id}-mitte.png" alt="">
+      <img class="frame f3" src="bilder/${u.id}-unten.png" alt="">
+    </div>
+    <div class="uname">${esc(u.name)}</div>
+    <div class="muster">${esc(u.muster)}</div>
+    <div class="ziel"><span>Ziel <b>${esc(u.ziel)}</b></span><span>Pause <b>${esc(u.pause)}</b></span><span>Gewicht <b>${esc(u.gewicht)}</b></span></div>
+    ${u.hinweis ? `<p class="hinweis">${esc(u.hinweis)}</p>` : ''}
+    <ul class="cues">${u.cues.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
+    <div class="eingabe">
+      <div class="feld"><label>Gewicht (kg)</label><input id="gew" inputmode="decimal" value="${esc(e.gewicht || '')}" placeholder="z.B. 14"></div>
+      <div class="feld"><label>Wiederholungen</label><input id="wdh" inputmode="text" value="${esc(e.wdh || '')}" placeholder="z.B. 12, 12, 10"></div>
+    </div>
+    <div class="knoepfe">
+      <button class="btn-zurueck" id="zurueck">Zurück</button>
+      <button class="btn-weiter" id="weiter">${i === UEBUNGEN.length - 1 ? 'Fertig' : 'Weiter'}</button>
+    </div>
+  </div>`);
+  app.appendChild(s);
+
+  const sichern = () => {
+    eintraege[u.id] = { gewicht: document.getElementById('gew').value.trim(), wdh: document.getElementById('wdh').value.trim() };
+    speichereEntwurf();
+  };
+  document.getElementById('gew').oninput = sichern;
+  document.getElementById('wdh').oninput = sichern;
+  document.getElementById('zurueck').onclick = () => { sichern(); screen = i === 0 ? 'start' : i - 1; render(); window.scrollTo(0, 0); };
+  document.getElementById('weiter').onclick = () => { sichern(); screen = i === UEBUNGEN.length - 1 ? 'fertig' : i + 1; render(); window.scrollTo(0, 0); };
+}
+
+function renderFertig() {
+  const zeilen = UEBUNGEN.map((u) => {
+    const e = eintraege[u.id] || {};
+    const wert = (e.wdh || e.gewicht)
+      ? `${esc(e.wdh || '–')} <small>${e.gewicht ? '· ' + esc(e.gewicht) + ' kg' : ''}</small>`
+      : '<small>—</small>';
+    return `<div class="zeile-uebung"><span class="n">${esc(u.name)}</span><span class="w">${wert}</span></div>`;
+  }).join('');
+  app.appendChild(el(`<div class="screen">
+    <div class="fertig-kopf"><div class="haken">✓</div><h1 style="margin:6px 0">Einheit fertig</h1></div>
+    <div class="summe">${zeilen}</div>
+    <div class="knoepfe">
+      <button class="btn-zurueck" id="zurueck">Zurück</button>
+      <button class="btn-weiter" id="speichern">Speichern</button>
+    </div>
+  </div>`));
+  document.getElementById('zurueck').onclick = () => { screen = UEBUNGEN.length - 1; render(); };
+  document.getElementById('speichern').onclick = () => {
+    const log = JSON.parse(localStorage.getItem('kraftsport_log') || '[]');
+    log.push({ datum: new Date().toISOString().slice(0, 10), eintraege });
+    localStorage.setItem('kraftsport_log', JSON.stringify(log));
+    eintraege = {};
+    localStorage.removeItem('kraftsport_entwurf');
+    screen = 'start';
+    render();
+  };
+}
+
+render();
