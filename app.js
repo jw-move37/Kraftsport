@@ -42,6 +42,17 @@ function speichereEntwurf() {
   localStorage.setItem('kraftsport_entwurf', JSON.stringify(eintraege));
 }
 
+function ladeLog() {
+  try { return JSON.parse(localStorage.getItem('kraftsport_log')) || []; } catch (e) { return []; }
+}
+function speichereLog(log) {
+  localStorage.setItem('kraftsport_log', JSON.stringify(log));
+}
+function dDe(iso) {
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
+}
+
 function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
@@ -57,10 +68,15 @@ function render() {
   app.innerHTML = '';
   if (screen === 'start') return renderStart();
   if (screen === 'fertig') return renderFertig();
+  if (screen === 'verlauf') return renderVerlauf();
   renderUebung(screen);
 }
 
 function renderStart() {
+  const log = ladeLog();
+  const verlaufBtn = log.length
+    ? `<div><button class="btn-link" id="verlauf">Verlauf ansehen (${log.length})</button></div>`
+    : '';
   app.appendChild(el(`<div class="screen start">
     <div>
       <h1>Kraftsport</h1>
@@ -68,8 +84,11 @@ function renderStart() {
     </div>
     <p>Aufwärmen 5 min: locker einlaufen, Bein-/Hüft-/Armkreisen, ein paar Kniebeugen ohne Gewicht.</p>
     <div><button class="btn-gross" id="los">Los geht's</button></div>
+    ${verlaufBtn}
   </div>`));
   document.getElementById('los').onclick = () => { screen = 0; render(); };
+  const v = document.getElementById('verlauf');
+  if (v) v.onclick = () => { screen = 'verlauf'; render(); };
 }
 
 function renderUebung(i) {
@@ -126,14 +145,47 @@ function renderFertig() {
   </div>`));
   document.getElementById('zurueck').onclick = () => { screen = UEBUNGEN.length - 1; render(); };
   document.getElementById('speichern').onclick = () => {
-    const log = JSON.parse(localStorage.getItem('kraftsport_log') || '[]');
+    const log = ladeLog();
     log.push({ datum: new Date().toISOString().slice(0, 10), eintraege });
-    localStorage.setItem('kraftsport_log', JSON.stringify(log));
+    speichereLog(log);
     eintraege = {};
     localStorage.removeItem('kraftsport_entwurf');
-    screen = 'start';
+    screen = 'verlauf';
     render();
   };
+}
+
+function renderVerlauf() {
+  const log = ladeLog();
+  const karten = [...log].reverse().map((s, ri) => {
+    const idx = log.length - 1 - ri; // echter Index im Log (für Löschen)
+    const zeilen = UEBUNGEN.map((u) => {
+      const e = (s.eintraege || {})[u.id] || {};
+      if (!e.wdh && !e.gewicht) return '';
+      const g = e.gewicht ? ` <small>· ${esc(e.gewicht)} kg</small>` : '';
+      return `<div class="zeile-uebung"><span class="n">${esc(u.name)}</span><span class="w">${esc(e.wdh || '–')}${g}</span></div>`;
+    }).filter(Boolean).join('') || '<p class="muster">Keine Einträge.</p>';
+    return `<div class="session">
+      <div class="session-kopf"><b>${dDe(s.datum)}</b><button class="loesch" data-i="${idx}" title="löschen">✕</button></div>
+      ${zeilen}
+    </div>`;
+  }).join('') || '<p class="muster">Noch keine gespeicherte Einheit.</p>';
+
+  app.appendChild(el(`<div class="top"><div class="zeile"><span class="titel">Verlauf</span><span class="zaehler">${log.length} Einheit${log.length === 1 ? '' : 'en'}</span></div></div>`));
+  app.appendChild(el(`<div class="screen">
+    <div class="verlauf">${karten}</div>
+    <div class="knoepfe"><button class="btn-weiter" id="zurueck">Zurück</button></div>
+  </div>`));
+  document.getElementById('zurueck').onclick = () => { screen = 'start'; render(); };
+  for (const b of app.querySelectorAll('.loesch')) {
+    b.onclick = () => {
+      if (!confirm('Diese Einheit löschen?')) return;
+      const log2 = ladeLog();
+      log2.splice(Number(b.dataset.i), 1);
+      speichereLog(log2);
+      render();
+    };
+  }
 }
 
 render();

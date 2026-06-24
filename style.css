@@ -73,3 +73,12 @@ button { font: inherit; cursor: pointer; border-radius: 12px; padding: 15px; bor
 .zeile-uebung .w small { color: var(--muted); font-weight: 400; }
 .fertig-kopf { text-align: center; margin: 10px 0 4px; }
 .fertig-kopf .haken { font-size: 40px; color: var(--gut); }
+
+/* Verlauf */
+.btn-link { background: transparent; border: none; color: var(--muted); font-size: 15px; text-decoration: underline; padding: 10px; margin-top: 8px; }
+.verlauf { display: flex; flex-direction: column; gap: 14px; margin: 8px 0 18px; }
+.session { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 6px 14px 10px; }
+.session-kopf { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; }
+.session-kopf b { font-size: 16px; }
+.session .zeile-uebung { background: transparent; border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 9px 0; }
+.loesch { background: transparent; border: none; color: var(--muted); font-size: 16px; padding: 4px 8px; }
