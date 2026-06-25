@@ -1,9 +1,10 @@
 'use strict';
 
 // Service-Worker: legt alle Dateien in den Cache, damit die App offline läuft.
-const CACHE = 'kraftsport-v3';
+const CACHE = 'kraftsport-v5';
 
-const IDS = ['goblet', 'rdl', 'bulgarian', 'rudern', 'lat', 'liege', 'schulter', 'seit'];
+// 'bulgarian' bleibt für die archivierten Bilder im Cache.
+const IDS = ['goblet', 'ausfall', 'rdl', 'rudern', 'lat', 'liege', 'schulter', 'seit', 'bulgarian'];
 const PHASEN = ['anfang', 'mitte', 'unten'];
 const BILDER = IDS.flatMap((id) => PHASEN.map((p) => `bilder/${id}-${p}.png`));
 const ASSETS = ['.', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', ...BILDER];

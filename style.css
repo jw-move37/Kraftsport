@@ -86,3 +86,6 @@ button { font: inherit; cursor: pointer; border-radius: 12px; padding: 15px; bor
 .session-kopf b { font-size: 16px; }
 .session .zeile-uebung { background: transparent; border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 9px 0; }
 .loesch { background: transparent; border: none; color: var(--muted); font-size: 16px; padding: 4px 8px; }
+.btn-export { width: 100%; margin-top: 12px; background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 12px; padding: 15px; font-weight: 700; font-size: 16px; }
+.export-wahl { margin-top: 12px; }
+.export-frage { color: var(--muted); text-align: center; margin: 0 0 8px; }

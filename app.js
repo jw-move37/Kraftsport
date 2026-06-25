@@ -11,9 +11,10 @@ const UEBUNGEN = [
   { id: 'rdl', name: 'RDL (Rumänisches Kreuzheben)', muster: 'Hüfte / hintere Kette',
     ziel: '3 × 8–12', pause: '90 s', gewicht: '16–20 kg/Hand',
     cues: ['Hüfte nach hinten schieben', 'Rücken gerade halten', 'Hanteln dicht am Schienbein'] },
-  { id: 'bulgarian', name: 'Bulgarian Split Squat', muster: 'Knie, unilateral', einbeinig: true,
+  // Bulgarian Split Squat ist archiviert (Bilder bleiben unter bilder/bulgarian-*.png) und kann jederzeit zurückgeholt werden.
+  { id: 'ausfall', name: 'Rückwärts-Ausfallschritt (Reverse Lunge)', muster: 'Knie, unilateral', einbeinig: true,
     ziel: '3 × 8–12 / Bein', pause: '75 s', gewicht: '12–14 kg/Hand',
-    cues: ['Hinterer Fuß erhöht (Box)', 'Vorderes Knie tief beugen', 'Oberkörper leicht nach vorn'] },
+    cues: ['Schritt nach hinten setzen', 'Hinteres Knie Richtung Boden senken', 'Vorderes Knie über dem Fuß, Oberkörper aufrecht'] },
   { id: 'rudern', name: 'Rudern zweiarmig vorgebeugt', muster: 'Zug horizontal',
     ziel: '3 × 8–12', pause: '75 s', gewicht: '14–16 kg/Hand',
     cues: ['Etwa 45° vorgebeugt', 'Hanteln zur Hüfte ziehen', 'Ellbogen nah am Körper'] },
@@ -65,6 +66,36 @@ function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 function wdhText(e) {
   if (e && Array.isArray(e.saetze)) return e.saetze.filter((x) => x !== '' && x != null).join(', ');
   return (e && e.wdh) ? e.wdh : '';
+}
+
+// Export: lesbarer Text einer Einheit bzw. aller Einheiten.
+function sessionText(s) {
+  let t = 'Kraftsport — ' + dDe(s.datum) + '\n';
+  for (const step of STEPS) {
+    const e = (s.eintraege || {})[step.key] || {};
+    const r = wdhText(e);
+    if (!r && !e.gewicht) continue;
+    const name = step.u.name + (step.seite ? ' (' + step.seite + ')' : '');
+    t += '- ' + name + ': ' + (r || '–') + (e.gewicht ? ' · ' + e.gewicht + ' kg' : '') + '\n';
+  }
+  return t;
+}
+function allesText(log) { return log.map(sessionText).join('\n'); }
+
+// Teilen über das Android-Teilen-Menü; sonst Download in den Download-Ordner.
+async function exportieren(name, text) {
+  try {
+    const file = new File([text], name, { type: 'text/plain' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: name });
+      return;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // Gewicht der letzten Übung davor (für die Vorbelegung).
@@ -203,8 +234,27 @@ function renderVerlauf() {
   app.appendChild(el(`<div class="screen">
     <div class="verlauf">${karten}</div>
     <div class="knoepfe"><button class="btn-weiter" id="zurueck">Zurück</button></div>
+    ${log.length ? `<button class="btn-export" id="export">Exportieren</button>
+    <div class="export-wahl" id="export-wahl" hidden>
+      <p class="export-frage">Was möchtest du exportieren?</p>
+      <div class="knoepfe">
+        <button class="btn-zurueck" id="exp-neueste">Nur neueste</button>
+        <button class="btn-weiter" id="exp-alle">Alle</button>
+      </div>
+    </div>` : ''}
   </div>`));
   document.getElementById('zurueck').onclick = () => { screen = 'start'; render(); };
+  const exp = document.getElementById('export');
+  if (exp) {
+    exp.onclick = () => { exp.hidden = true; document.getElementById('export-wahl').hidden = false; };
+    document.getElementById('exp-neueste').onclick = () => {
+      const s = log[log.length - 1];
+      exportieren('Kraft_' + s.datum + '.txt', sessionText(s));
+    };
+    document.getElementById('exp-alle').onclick = () => {
+      exportieren('Kraft_alle_' + new Date().toISOString().slice(0, 10) + '.txt', allesText(log));
+    };
+  }
   for (const b of app.querySelectorAll('.loesch')) {
     b.onclick = () => {
       if (!confirm('Diese Einheit löschen?')) return;
