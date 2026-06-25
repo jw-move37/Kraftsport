@@ -86,6 +86,18 @@ button { font: inherit; cursor: pointer; border-radius: 12px; padding: 15px; bor
 .session-kopf b { font-size: 16px; }
 .session .zeile-uebung { background: transparent; border: none; border-top: 1px solid var(--line); border-radius: 0; padding: 9px 0; }
 .loesch { background: transparent; border: none; color: var(--muted); font-size: 16px; padding: 4px 8px; }
+/* Timer-Ansicht (aktive Übung) */
+.aktiv { text-align: center; }
+.bigtimer { font-size: 64px; font-weight: 800; letter-spacing: 1px; font-variant-numeric: tabular-nums; margin: 18px 0 6px; }
+.aktiv-name { font-size: 18px; font-weight: 700; margin-bottom: 22px; }
+.aktiv .seite-klein { color: var(--accent); }
+.aktiv .block-eingabe { text-align: left; }
+.feld-gross input { font-size: 22px; padding: 16px; }
+.btn-beenden { width: 100%; margin-top: 20px; background: var(--accent); color: #fff; border: none; border-radius: 14px; padding: 18px; font-weight: 800; font-size: 18px; }
+.pausebox { text-align: center; color: var(--accent); font-weight: 700; font-size: 18px; margin: 2px 0 10px; font-variant-numeric: tabular-nums; }
+.zeiten { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; margin: 4px 0 14px; color: var(--muted); font-size: 14px; }
+.zeiten b { color: var(--text); }
+.session .zeiten { justify-content: flex-start; margin: 6px 0 8px; font-size: 13px; }
 .btn-export { width: 100%; margin-top: 12px; background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 12px; padding: 15px; font-weight: 700; font-size: 16px; }
 .export-wahl { margin-top: 12px; }
 .export-frage { color: var(--muted); text-align: center; margin: 0 0 8px; }
