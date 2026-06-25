@@ -1,7 +1,7 @@
 'use strict';
 
 // Service-Worker: legt alle Dateien in den Cache, damit die App offline läuft.
-const CACHE = 'kraftsport-v2';
+const CACHE = 'kraftsport-v3';
 
 const IDS = ['goblet', 'rdl', 'bulgarian', 'rudern', 'lat', 'liege', 'schulter', 'seit'];
 const PHASEN = ['anfang', 'mitte', 'unten'];

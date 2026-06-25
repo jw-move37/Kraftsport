@@ -49,6 +49,10 @@ ul.cues { margin: 6px 0 16px; padding-left: 20px; color: var(--text); }
 ul.cues li { margin: 4px 0; }
 
 /* Eingabe */
+.seite { color: var(--accent); font-weight: 700; font-size: 15px; margin-top: 3px; }
+.seite-klein { color: var(--muted); font-weight: 400; }
+.block-eingabe { margin-top: auto; display: flex; flex-direction: column; gap: 12px; }
+.saetze { display: grid; grid-template-columns: repeat(auto-fit, minmax(78px, 1fr)); gap: 10px; }
 .eingabe { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: auto; }
 .feld { display: flex; flex-direction: column; gap: 6px; }
 .feld label { color: var(--muted); font-size: 13px; }

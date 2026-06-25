@@ -1,7 +1,8 @@
 'use strict';
 
-// Kraftsport — kleine Trainings-App (PWA). Eine Übung nach der anderen:
-// Bild + Erklärung, Gewicht und Wiederholungen eintragen, weiter zur nächsten.
+// Kraftsport — kleine Trainings-App (PWA). Eine Übung (bzw. Bein) nach der
+// anderen: Bild + Erklärung, Gewicht und Wiederholungen je Satz eintragen,
+// weiter zum nächsten. Verlauf bleibt in der App.
 
 const UEBUNGEN = [
   { id: 'goblet', name: 'Goblet Squat', muster: 'Knie, bilateral',
@@ -10,7 +11,7 @@ const UEBUNGEN = [
   { id: 'rdl', name: 'RDL (Rumänisches Kreuzheben)', muster: 'Hüfte / hintere Kette',
     ziel: '3 × 8–12', pause: '90 s', gewicht: '16–20 kg/Hand',
     cues: ['Hüfte nach hinten schieben', 'Rücken gerade halten', 'Hanteln dicht am Schienbein'] },
-  { id: 'bulgarian', name: 'Bulgarian Split Squat', muster: 'Knie, unilateral',
+  { id: 'bulgarian', name: 'Bulgarian Split Squat', muster: 'Knie, unilateral', einbeinig: true,
     ziel: '3 × 8–12 / Bein', pause: '75 s', gewicht: '12–14 kg/Hand',
     cues: ['Hinterer Fuß erhöht (Box)', 'Vorderes Knie tief beugen', 'Oberkörper leicht nach vorn'] },
   { id: 'rudern', name: 'Rudern zweiarmig vorgebeugt', muster: 'Zug horizontal',
@@ -31,6 +32,20 @@ const UEBUNGEN = [
     cues: ['Arme seitlich auf Schulterhöhe', 'Ellbogen leicht gebeugt'] },
 ];
 
+// Ablauf-Schritte: einbeinige Übungen werden in linkes + rechtes Bein zerlegt.
+const STEPS = [];
+for (const u of UEBUNGEN) {
+  if (u.einbeinig) {
+    STEPS.push({ u, key: u.id + '-l', seite: 'Linkes Bein' });
+    STEPS.push({ u, key: u.id + '-r', seite: 'Rechtes Bein' });
+  } else {
+    STEPS.push({ u, key: u.id });
+  }
+}
+
+function saetzeAnzahl(u) { const m = u.ziel.match(/^(\d+)\s*×/); return m ? Number(m[1]) : 3; }
+function hatGewicht(u) { return /kg/.test(u.gewicht); }
+
 const app = document.getElementById('app');
 let screen = 'start';
 let eintraege = ladeEntwurf();
@@ -38,28 +53,33 @@ let eintraege = ladeEntwurf();
 function ladeEntwurf() {
   try { return JSON.parse(localStorage.getItem('kraftsport_entwurf')) || {}; } catch (e) { return {}; }
 }
-function speichereEntwurf() {
-  localStorage.setItem('kraftsport_entwurf', JSON.stringify(eintraege));
-}
-
-function ladeLog() {
-  try { return JSON.parse(localStorage.getItem('kraftsport_log')) || []; } catch (e) { return []; }
-}
-function speichereLog(log) {
-  localStorage.setItem('kraftsport_log', JSON.stringify(log));
-}
-function dDe(iso) {
-  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}.${m[2]}.${m[1]}` : iso;
-}
+function speichereEntwurf() { localStorage.setItem('kraftsport_entwurf', JSON.stringify(eintraege)); }
+function ladeLog() { try { return JSON.parse(localStorage.getItem('kraftsport_log')) || []; } catch (e) { return []; } }
+function speichereLog(log) { localStorage.setItem('kraftsport_log', JSON.stringify(log)); }
+function dDe(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}.${m[2]}.${m[1]}` : iso; }
 
 function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+// Wiederholungen einer Eintragung als Text ("12, 12, 10"); auch altes Format (wdh).
+function wdhText(e) {
+  if (e && Array.isArray(e.saetze)) return e.saetze.filter((x) => x !== '' && x != null).join(', ');
+  return (e && e.wdh) ? e.wdh : '';
+}
+
+// Gewicht der letzten Übung davor (für die Vorbelegung).
+function letztesGewicht(i) {
+  for (let k = i - 1; k >= 0; k--) {
+    const e = eintraege[STEPS[k].key];
+    if (e && e.gewicht) return e.gewicht;
+  }
+  return '';
+}
+
 function kopf(idx) {
-  const pct = Math.round((idx / UEBUNGEN.length) * 100);
+  const pct = Math.round((idx / STEPS.length) * 100);
   return `<div class="top">
-    <div class="zeile"><span class="titel">Kraftsport</span><span class="zaehler">Übung ${idx + 1} / ${UEBUNGEN.length}</span></div>
+    <div class="zeile"><span class="titel">Kraftsport</span><span class="zaehler">Schritt ${idx + 1} / ${STEPS.length}</span></div>
     <div class="bar"><i style="width:${pct}%"></i></div>
   </div>`;
 }
@@ -69,7 +89,7 @@ function render() {
   if (screen === 'start') return renderStart();
   if (screen === 'fertig') return renderFertig();
   if (screen === 'verlauf') return renderVerlauf();
-  renderUebung(screen);
+  renderStep(screen);
 }
 
 function renderStart() {
@@ -91,50 +111,63 @@ function renderStart() {
   if (v) v.onclick = () => { screen = 'verlauf'; render(); };
 }
 
-function renderUebung(i) {
-  const u = UEBUNGEN[i];
-  const e = eintraege[u.id] || {};
+function renderStep(i) {
+  const step = STEPS[i];
+  const u = step.u;
+  const e = eintraege[step.key] || {};
+  const N = saetzeAnzahl(u);
+  const saetze = e.saetze || [];
+  const gewVal = (e.gewicht !== undefined && e.gewicht !== '') ? e.gewicht : (hatGewicht(u) ? letztesGewicht(i) : '');
+  const repsFelder = Array.from({ length: N }, (_, k) =>
+    `<div class="feld"><label>Satz ${k + 1}</label><input class="wdh" data-k="${k}" inputmode="numeric" value="${esc(saetze[k] || '')}" placeholder="Wdh"></div>`
+  ).join('');
+
   app.appendChild(el(kopf(i)));
-  const s = el(`<div class="screen">
+  app.appendChild(el(`<div class="screen">
     <div class="bild">
       <img class="frame f1" src="bilder/${u.id}-anfang.png" alt="">
       <img class="frame f2" src="bilder/${u.id}-mitte.png" alt="">
       <img class="frame f3" src="bilder/${u.id}-unten.png" alt="">
     </div>
     <div class="uname">${esc(u.name)}</div>
-    <div class="muster">${esc(u.muster)}</div>
+    ${step.seite ? `<div class="seite">${esc(step.seite)}</div>` : `<div class="muster">${esc(u.muster)}</div>`}
     <div class="ziel"><span>Ziel <b>${esc(u.ziel)}</b></span><span>Pause <b>${esc(u.pause)}</b></span><span>Gewicht <b>${esc(u.gewicht)}</b></span></div>
     ${u.hinweis ? `<p class="hinweis">${esc(u.hinweis)}</p>` : ''}
     <ul class="cues">${u.cues.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
-    <div class="eingabe">
-      <div class="feld"><label>Gewicht (kg)</label><input id="gew" inputmode="decimal" value="${esc(e.gewicht || '')}" placeholder="z.B. 14"></div>
-      <div class="feld"><label>Wiederholungen</label><input id="wdh" inputmode="text" value="${esc(e.wdh || '')}" placeholder="z.B. 12, 12, 10"></div>
+    <div class="block-eingabe">
+      <div class="feld"><label>Gewicht (kg)</label><input id="gew" inputmode="decimal" value="${esc(gewVal)}" placeholder="kg"></div>
+      <div class="saetze">${repsFelder}</div>
     </div>
     <div class="knoepfe">
       <button class="btn-zurueck" id="zurueck">Zurück</button>
-      <button class="btn-weiter" id="weiter">${i === UEBUNGEN.length - 1 ? 'Fertig' : 'Weiter'}</button>
+      <button class="btn-weiter" id="weiter">${i === STEPS.length - 1 ? 'Fertig' : 'Weiter'}</button>
     </div>
-  </div>`);
-  app.appendChild(s);
+  </div>`));
 
   const sichern = () => {
-    eintraege[u.id] = { gewicht: document.getElementById('gew').value.trim(), wdh: document.getElementById('wdh').value.trim() };
+    const arr = [...app.querySelectorAll('.wdh')].map((x) => x.value.trim());
+    eintraege[step.key] = { gewicht: document.getElementById('gew').value.trim(), saetze: arr };
     speichereEntwurf();
   };
   document.getElementById('gew').oninput = sichern;
-  document.getElementById('wdh').oninput = sichern;
+  for (const x of app.querySelectorAll('.wdh')) x.oninput = sichern;
   document.getElementById('zurueck').onclick = () => { sichern(); screen = i === 0 ? 'start' : i - 1; render(); window.scrollTo(0, 0); };
-  document.getElementById('weiter').onclick = () => { sichern(); screen = i === UEBUNGEN.length - 1 ? 'fertig' : i + 1; render(); window.scrollTo(0, 0); };
+  document.getElementById('weiter').onclick = () => { sichern(); screen = i === STEPS.length - 1 ? 'fertig' : i + 1; render(); window.scrollTo(0, 0); };
+}
+
+function zeilenAusEintraegen(quelle) {
+  return STEPS.map((step) => {
+    const e = (quelle || {})[step.key] || {};
+    const r = wdhText(e);
+    if (!r && !e.gewicht) return '';
+    const name = esc(step.u.name) + (step.seite ? ` <span class="seite-klein">· ${esc(step.seite)}</span>` : '');
+    const g = e.gewicht ? ` <small>· ${esc(e.gewicht)} kg</small>` : '';
+    return `<div class="zeile-uebung"><span class="n">${name}</span><span class="w">${esc(r || '–')}${g}</span></div>`;
+  }).join('');
 }
 
 function renderFertig() {
-  const zeilen = UEBUNGEN.map((u) => {
-    const e = eintraege[u.id] || {};
-    const wert = (e.wdh || e.gewicht)
-      ? `${esc(e.wdh || '–')} <small>${e.gewicht ? '· ' + esc(e.gewicht) + ' kg' : ''}</small>`
-      : '<small>—</small>';
-    return `<div class="zeile-uebung"><span class="n">${esc(u.name)}</span><span class="w">${wert}</span></div>`;
-  }).join('');
+  const zeilen = zeilenAusEintraegen(eintraege) || '<p class="muster">Noch nichts eingetragen.</p>';
   app.appendChild(el(`<div class="screen">
     <div class="fertig-kopf"><div class="haken">✓</div><h1 style="margin:6px 0">Einheit fertig</h1></div>
     <div class="summe">${zeilen}</div>
@@ -143,7 +176,7 @@ function renderFertig() {
       <button class="btn-weiter" id="speichern">Speichern</button>
     </div>
   </div>`));
-  document.getElementById('zurueck').onclick = () => { screen = UEBUNGEN.length - 1; render(); };
+  document.getElementById('zurueck').onclick = () => { screen = STEPS.length - 1; render(); };
   document.getElementById('speichern').onclick = () => {
     const log = ladeLog();
     log.push({ datum: new Date().toISOString().slice(0, 10), eintraege });
@@ -158,13 +191,8 @@ function renderFertig() {
 function renderVerlauf() {
   const log = ladeLog();
   const karten = [...log].reverse().map((s, ri) => {
-    const idx = log.length - 1 - ri; // echter Index im Log (für Löschen)
-    const zeilen = UEBUNGEN.map((u) => {
-      const e = (s.eintraege || {})[u.id] || {};
-      if (!e.wdh && !e.gewicht) return '';
-      const g = e.gewicht ? ` <small>· ${esc(e.gewicht)} kg</small>` : '';
-      return `<div class="zeile-uebung"><span class="n">${esc(u.name)}</span><span class="w">${esc(e.wdh || '–')}${g}</span></div>`;
-    }).filter(Boolean).join('') || '<p class="muster">Keine Einträge.</p>';
+    const idx = log.length - 1 - ri;
+    const zeilen = zeilenAusEintraegen(s.eintraege) || '<p class="muster">Keine Einträge.</p>';
     return `<div class="session">
       <div class="session-kopf"><b>${dDe(s.datum)}</b><button class="loesch" data-i="${idx}" title="löschen">✕</button></div>
       ${zeilen}
