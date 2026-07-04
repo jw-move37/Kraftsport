@@ -13,8 +13,8 @@ const UEBUNGEN = [
     ziel: '3 × 8–12', pause: '90 s', gewicht: '16–20 kg/Hand',
     cues: ['Hüfte nach hinten schieben', 'Rücken gerade halten', 'Hanteln dicht am Schienbein'] },
   // Bulgarian Split Squat ist archiviert (Bilder bleiben unter bilder/bulgarian-*.png) und kann jederzeit zurückgeholt werden.
-  { id: 'ausfall', name: 'Rückwärts-Ausfallschritt (Reverse Lunge)', muster: 'Knie, unilateral', einbeinig: true,
-    ziel: '3 × 8–12 / Bein', pause: '75 s', gewicht: '12–14 kg/Hand',
+  { id: 'ausfall', name: 'Rückwärts-Ausfallschritt (Reverse Lunge)', muster: 'Knie, unilateral',
+    ziel: '3 × 8–12', pause: '75 s', gewicht: '12–14 kg/Hand',
     cues: ['Schritt nach hinten setzen', 'Hinteres Knie Richtung Boden senken', 'Vorderes Knie über dem Fuß, Oberkörper aufrecht'] },
   { id: 'rudern', name: 'Rudern zweiarmig vorgebeugt', muster: 'Zug horizontal',
     ziel: '3 × 8–12', pause: '75 s', gewicht: '14–16 kg/Hand',
@@ -30,7 +30,7 @@ const UEBUNGEN = [
     ziel: '3 × 8–12 (oder 15–20 bei 7 kg)', pause: '60 s', gewicht: '9–11 kg/Hand (bzw. 7)',
     cues: ['Von Schulterhöhe nach oben drücken', 'Rumpf fest, nicht ins Hohlkreuz'] },
   { id: 'seit', name: 'Seitheben', muster: 'Isolation Schulter',
-    ziel: '2 × 15–20', pause: '45 s', gewicht: '6–7 kg/Hand',
+    ziel: '3 × 15–20', pause: '45 s', gewicht: '6–7 kg/Hand',
     cues: ['Arme seitlich auf Schulterhöhe', 'Ellbogen leicht gebeugt'] },
 ];
 
