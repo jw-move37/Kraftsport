@@ -101,3 +101,24 @@ button { font: inherit; cursor: pointer; border-radius: 12px; padding: 15px; bor
 .btn-export { width: 100%; margin-top: 12px; background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 12px; padding: 15px; font-weight: 700; font-size: 16px; }
 .export-wahl { margin-top: 12px; }
 .export-frage { color: var(--muted); text-align: center; margin: 0 0 8px; }
+
+/* Aufwärm-/Satz-Beschriftung unter der großen Uhr */
+.bigcap { text-align: center; font-size: 14px; font-weight: 700; letter-spacing: .4px; margin: -4px 0 6px; color: var(--muted); }
+.bigcap.aktiv-cap { color: var(--gut); }
+.bigcap.pause-cap { color: var(--accent); }
+
+/* Sätze mit Start/Stop je Satz */
+.saetze-liste { display: flex; flex-direction: column; gap: 10px; }
+.satz { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+.satz .satz-lbl { color: var(--muted); font-size: 14px; flex: 0 0 58px; }
+.satz .satz-zeit { font-variant-numeric: tabular-nums; font-weight: 700; }
+.satz.offen { opacity: .45; }
+.satz.dran { border-color: var(--gut); }
+.satz.laeuft { border-color: var(--accent); }
+.satz.done .satz-zeit { color: var(--gut); }
+.satz .wdh { margin-left: auto; flex: 0 0 92px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 18px; text-align: center; }
+.satz .wdh:focus { outline: none; border-color: var(--accent); }
+.satz .btn-start, .satz .btn-stop { margin-left: auto; border: none; color: #fff; font-weight: 800; font-size: 16px; padding: 12px 26px; border-radius: 10px; }
+.satz .btn-start { background: var(--gut); }
+.satz .btn-stop { background: #e0654f; }
+.btn-beenden:disabled { opacity: .4; }

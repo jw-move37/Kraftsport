@@ -1,7 +1,7 @@
 'use strict';
 
 // Service-Worker: legt alle Dateien in den Cache, damit die App offline läuft.
-const CACHE = 'kraftsport-v7';
+const CACHE = 'kraftsport-v8';
 
 // 'bulgarian' bleibt für die archivierten Bilder im Cache.
 const IDS = ['goblet', 'ausfall', 'rdl', 'rudern', 'lat', 'liege', 'schulter', 'seit', 'bulgarian'];

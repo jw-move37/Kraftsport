@@ -1,9 +1,13 @@
 'use strict';
 
 // Kraftsport — Trainings-App (PWA) mit Zeitmessung.
-// Ablauf: Training starten (Session-Timer) → je Übung "starten" (große,
-// reduzierte Ansicht: Timer + Gewicht + Wiederholungen) → "beenden" → Pause
-// läuft automatisch bis zur nächsten Übung → am Ende Übersicht mit Zeiten.
+// Ablauf: Training starten → Aufwärmen (eigene Uhr) → je Übung nacheinander.
+// Pro Übung wird JEDER Satz einzeln gestoppt: "Start" beginnt die Wiederholungs-
+// phase, "Stop" beendet sie (die Satzzeit steht fest), danach die Wiederholungen
+// eintippen. Die Zeit zwischen Stop und dem nächsten Start (auch Gewicht-Eintippen)
+// zählt als Pause. Gewicht einmal pro Übung, vorbelegt aus dem letzten Trainingstag.
+// Am Ende: Gesamtzeit inkl. Aufwärmen, Aufwärmzeit separat, Aktiv (Summe der Sätze),
+// Pause als Rest.
 
 const UEBUNGEN = [
   { id: 'goblet', name: 'Goblet Squat', muster: 'Knie, bilateral',
@@ -48,13 +52,14 @@ function saetzeAnzahl(u) { const m = u.ziel.match(/^(\d+)\s*×/); return m ? Num
 function hatGewicht(u) { return /kg/.test(u.gewicht); }
 
 const app = document.getElementById('app');
-let screen = 'start';     // 'start' | <index> | 'fertig' | 'verlauf'
+let screen = 'start';     // 'start' | 'aufwaermen' | <index> | 'fertig' | 'verlauf'
 let phase = 'vorschau';   // bei <index>: 'vorschau' | 'aktiv'
-let pauseStart = null;    // ms, Beginn der laufenden Pause (in der Vorschau)
+let pauseStart = null;    // ms, Beginn der laufenden Pause (Rest zwischen Sätzen/Übungen)
+let laufStart = null;     // ms, Beginn des gerade laufenden Satzes (sonst null)
 let ticker = null;
 
 let eintraege = ladeJSON('kraftsport_entwurf', {});
-let sitzung = ladeJSON('kraftsport_sitzung', { start: null, ende: null });
+let sitzung = ladeJSON('kraftsport_sitzung', { start: null, aufwaermEnde: null, ende: null });
 
 function ladeJSON(k, fallback) { try { return JSON.parse(localStorage.getItem(k)) || fallback; } catch (e) { return fallback; } }
 function speichereEntwurf() { localStorage.setItem('kraftsport_entwurf', JSON.stringify(eintraege)); }
@@ -72,29 +77,73 @@ function fmtZeit(ms) {
   const mm = String(m).padStart(2, '0'), ss = String(sek).padStart(2, '0');
   return h ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
+function hhmm(ms) { const d = new Date(ms); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); }
+
+// Sätze eines Eintrags auf N Objekte { reps, ms } bringen (und altes Format migrieren).
+function richteSaetze(e, N) {
+  const alt = Array.isArray(e.saetze) ? e.saetze : [];
+  e.saetze = alt.map((s) => (s && typeof s === 'object')
+    ? { reps: s.reps || '', ms: (s.ms == null ? null : s.ms) }
+    : { reps: (s == null ? '' : String(s)), ms: null });
+  while (e.saetze.length < N) e.saetze.push({ reps: '', ms: null });
+  if (e.saetze.length > N) e.saetze.length = N;
+  return e;
+}
 function wdhText(e) {
-  if (e && Array.isArray(e.saetze)) return e.saetze.filter((x) => x !== '' && x != null).join(', ');
+  if (e && Array.isArray(e.saetze)) {
+    return e.saetze.map((s) => (s && typeof s === 'object') ? s.reps : s).filter((x) => x !== '' && x != null).join(', ');
+  }
   return (e && e.wdh) ? e.wdh : '';
 }
-function aktivSek(e) { return (e && e.aktivStart && e.aktivEnde) ? Math.round((e.aktivEnde - e.aktivStart) / 1000) : 0; }
-function letztesGewicht(i) {
-  for (let k = i - 1; k >= 0; k--) { const e = eintraege[STEPS[k].key]; if (e && e.gewicht) return e.gewicht; }
+// Aktivzeit einer Übung in Sekunden: Summe der Satzzeiten (neu) oder alt aktivStart/Ende.
+function aktivSek(e) {
+  if (e && Array.isArray(e.saetze) && e.saetze.some((s) => s && typeof s === 'object' && s.ms != null)) {
+    return Math.round(e.saetze.reduce((a, s) => a + ((s && s.ms) || 0), 0) / 1000);
+  }
+  if (e && e.aktivStart && e.aktivEnde) return Math.round((e.aktivEnde - e.aktivStart) / 1000);
+  return 0;
+}
+function satzZeiten(e) {
+  if (e && Array.isArray(e.saetze)) return e.saetze.filter((s) => s && typeof s === 'object' && s.ms != null).map((s) => fmtZeit(s.ms));
+  return [];
+}
+function aufwaermMs(s) { return (s && s.start && s.aufwaermEnde) ? (s.aufwaermEnde - s.start) : 0; }
+
+// Gewicht aus dem letzten gespeicherten Trainingstag für diese Übung übernehmen.
+function letztesGewicht(key) {
+  const log = ladeLog();
+  for (let i = log.length - 1; i >= 0; i--) {
+    const es = log[i].eintraege || {};
+    let e = es[key];
+    if (!e && key === 'ausfall') e = es['ausfall-l'] || es['ausfall-r']; // Übergang vom alten Links/Rechts-Split
+    if (e && e.gewicht) return e.gewicht;
+  }
   return '';
 }
 
 // ---- laufende Uhr ----
-function startTick() { stopTick(); ticker = setInterval(updateTimers, 1000); updateTimers(); }
+function startTick() { stopTick(); ticker = setInterval(updateTimers, 500); updateTimers(); }
 function stopTick() { if (ticker) { clearInterval(ticker); ticker = null; } }
 function updateTimers() {
+  const now = Date.now();
   const t = document.getElementById('timer');
-  if (t && sitzung.start) t.textContent = fmtZeit(Date.now() - sitzung.start);
+  if (t && sitzung.start) t.textContent = fmtZeit(now - sitzung.start);
+  const w = document.getElementById('warmuhr');
+  if (w && sitzung.start) w.textContent = fmtZeit(now - sitzung.start);
   const p = document.getElementById('pause');
-  if (p && pauseStart) p.textContent = fmtZeit(Date.now() - pauseStart);
+  if (p && pauseStart) p.textContent = fmtZeit(now - pauseStart);
+  const big = document.getElementById('bigt');
+  if (big) {
+    if (laufStart) big.textContent = fmtZeit(now - laufStart);
+    else if (pauseStart) big.textContent = fmtZeit(now - pauseStart);
+    else big.textContent = '0:00';
+  }
 }
 
 function render() {
   app.innerHTML = '';
   if (screen === 'start') return renderStart();
+  if (screen === 'aufwaermen') return renderAufwaermen();
   if (screen === 'fertig') return renderFertig();
   if (screen === 'verlauf') return renderVerlauf();
   renderStep(screen);
@@ -111,18 +160,34 @@ function renderStart() {
       <h1>Kraftsport</h1>
       <p>8 Übungen, jeden 2. Tag.</p>
     </div>
-    <p>Aufwärmen 5 min: locker einlaufen, Bein-/Hüft-/Armkreisen, ein paar Kniebeugen ohne Gewicht.</p>
+    <p>Zuerst Aufwärmen, dann jede Übung Satz für Satz mit Start/Stop.</p>
     <div><button class="btn-gross" id="los">Training starten</button></div>
     ${verlaufBtn}
   </div>`));
   document.getElementById('los').onclick = () => {
     eintraege = {}; speichereEntwurf();
-    sitzung = { start: Date.now(), ende: null }; speichereSitzung();
-    screen = 0; phase = 'vorschau'; pauseStart = null;
+    sitzung = { start: Date.now(), aufwaermEnde: null, ende: null }; speichereSitzung();
+    screen = 'aufwaermen'; phase = 'vorschau'; pauseStart = null; laufStart = null;
     startTick(); render();
   };
   const v = document.getElementById('verlauf');
   if (v) v.onclick = () => { screen = 'verlauf'; render(); };
+}
+
+function renderAufwaermen() {
+  app.appendChild(el(`<div class="screen aktiv">
+    <div class="bigtimer" id="bigt">0:00</div>
+    <div class="bigcap aktiv-cap">Aufwärmen läuft</div>
+    <div class="aktiv-name" style="margin-top:20px">Warm werden</div>
+    <p class="hinweis">5 min: locker einlaufen, Bein-/Hüft-/Armkreisen, ein paar Kniebeugen ohne Gewicht.</p>
+    <button class="btn-beenden" id="warmfertig">Aufwärmen fertig – erste Übung</button>
+  </div>`));
+  laufStart = null; pauseStart = null; updateTimers();
+  document.getElementById('warmfertig').onclick = () => {
+    sitzung.aufwaermEnde = Date.now(); speichereSitzung();
+    pauseStart = Date.now(); screen = 0; phase = 'vorschau';
+    render(); window.scrollTo(0, 0);
+  };
 }
 
 function renderStep(i) {
@@ -130,7 +195,7 @@ function renderStep(i) {
   const u = step.u;
   const e = eintraege[step.key] || {};
   if (phase === 'vorschau') return renderVorschau(i, step, u, e);
-  return renderAktiv(i, step, u, e);
+  return renderAktiv(i, step, u);
 }
 
 function renderVorschau(i, step, u, e) {
@@ -156,51 +221,95 @@ function renderVorschau(i, step, u, e) {
   </div>`));
   updateTimers();
   document.getElementById('zurueck').onclick = () => { screen = i === 0 ? 'start' : i - 1; phase = 'vorschau'; render(); window.scrollTo(0, 0); };
-  document.getElementById('starten').onclick = () => {
-    const cur = eintraege[step.key] || {};
-    cur.aktivStart = Date.now(); cur.aktivEnde = null;
-    eintraege[step.key] = cur; speichereEntwurf();
-    phase = 'aktiv'; pauseStart = null; render(); window.scrollTo(0, 0);
-  };
+  document.getElementById('starten').onclick = () => { phase = 'aktiv'; render(); window.scrollTo(0, 0); };
 }
 
-function renderAktiv(i, step, u, e) {
+function renderAktiv(i, step, u) {
   const N = saetzeAnzahl(u);
-  const saetze = e.saetze || [];
-  const gewVal = (e.gewicht !== undefined && e.gewicht !== '') ? e.gewicht : (hatGewicht(u) ? letztesGewicht(i) : '');
-  const repsFelder = Array.from({ length: N }, (_, k) =>
-    `<div class="feld"><label>Satz ${k + 1}</label><input class="wdh" data-k="${k}" inputmode="numeric" value="${esc(saetze[k] || '')}" placeholder="Wdh"></div>`
-  ).join('');
+  const e = richteSaetze(eintraege[step.key] || {}, N);
+  eintraege[step.key] = e;
+  laufStart = e.laufStart || null;
+  const gewVal = (e.gewicht !== undefined && e.gewicht !== '') ? e.gewicht : (hatGewicht(u) ? letztesGewicht(step.key) : '');
+  const curIdx = e.saetze.findIndex((s) => s.ms == null);   // nächster offener Satz (-1 = alle fertig)
+  const running = laufStart != null;
   const letzte = i === STEPS.length - 1;
 
+  const reihen = e.saetze.map((s, k) => {
+    if (s.ms != null) {
+      return `<div class="satz done">
+        <span class="satz-lbl">Satz ${k + 1}</span>
+        <span class="satz-zeit">${fmtZeit(s.ms)}</span>
+        <input class="wdh" data-k="${k}" inputmode="numeric" value="${esc(s.reps || '')}" placeholder="Wdh">
+      </div>`;
+    }
+    if (k === curIdx) {
+      return running
+        ? `<div class="satz laeuft">
+            <span class="satz-lbl">Satz ${k + 1}</span>
+            <span class="satz-zeit">läuft…</span>
+            <button class="btn-stop" id="stop">Stop</button>
+          </div>`
+        : `<div class="satz dran">
+            <span class="satz-lbl">Satz ${k + 1}</span>
+            <span class="satz-zeit">–</span>
+            <button class="btn-start" id="start">Start</button>
+          </div>`;
+    }
+    return `<div class="satz offen"><span class="satz-lbl">Satz ${k + 1}</span><span class="satz-zeit">–</span></div>`;
+  }).join('');
+
+  const cap = running ? '<div class="bigcap aktiv-cap">Satz läuft</div>'
+    : (pauseStart ? '<div class="bigcap pause-cap">Pause</div>' : '<div class="bigcap">&nbsp;</div>');
+
   app.appendChild(el(`<div class="screen aktiv">
-    <div class="bigtimer" id="timer">0:00</div>
-    <div class="aktiv-name">${esc(u.name)}${step.seite ? ` <span class="seite-klein">· ${esc(step.seite)}</span>` : ''}</div>
+    <div class="bigtimer" id="bigt">0:00</div>
+    ${cap}
+    <div class="aktiv-name">${esc(u.name)}</div>
     <div class="block-eingabe">
       <div class="feld feld-gross"><label>Gewicht (kg)</label><input id="gew" inputmode="decimal" value="${esc(gewVal)}" placeholder="kg"></div>
-      <div class="saetze">${repsFelder}</div>
+      <div class="saetze-liste">${reihen}</div>
     </div>
-    <button class="btn-beenden" id="beenden">Übung beenden${letzte ? ' & Training fertig' : ''}</button>
+    <button class="btn-beenden" id="beenden"${running ? ' disabled' : ''}>${letzte ? 'Training fertig' : 'Weiter zur nächsten Übung'}</button>
   </div>`));
   updateTimers();
 
   const sichern = () => {
-    const arr = [...app.querySelectorAll('.wdh')].map((x) => x.value.trim());
-    const cur = eintraege[step.key] || {};
-    cur.gewicht = document.getElementById('gew').value.trim();
-    cur.saetze = arr;
-    eintraege[step.key] = cur; speichereEntwurf();
+    const g = document.getElementById('gew');
+    if (g) e.gewicht = g.value.trim();
+    for (const x of app.querySelectorAll('.wdh')) {
+      const k = Number(x.dataset.k);
+      if (e.saetze[k]) e.saetze[k].reps = x.value.trim();
+    }
+    eintraege[step.key] = e; speichereEntwurf();
   };
-  document.getElementById('gew').oninput = sichern;
+  const g = document.getElementById('gew');
+  if (g) g.oninput = sichern;
   for (const x of app.querySelectorAll('.wdh')) x.oninput = sichern;
+
+  const startBtn = document.getElementById('start');
+  if (startBtn) startBtn.onclick = () => {
+    sichern();
+    laufStart = Date.now(); e.laufStart = laufStart; pauseStart = null;
+    eintraege[step.key] = e; speichereEntwurf();
+    startTick(); render(); window.scrollTo(0, 0);
+  };
+  const stopBtn = document.getElementById('stop');
+  if (stopBtn) stopBtn.onclick = () => {
+    sichern();
+    const idx = e.saetze.findIndex((s) => s.ms == null);
+    if (idx !== -1) e.saetze[idx].ms = Date.now() - laufStart;
+    e.laufStart = null; laufStart = null;
+    pauseStart = Date.now();   // Rest bis zum nächsten Start (inkl. Wiederholungen/Gewicht eintippen)
+    eintraege[step.key] = e; speichereEntwurf();
+    render(); window.scrollTo(0, 0);
+  };
   document.getElementById('beenden').onclick = () => {
     sichern();
-    const cur = eintraege[step.key]; cur.aktivEnde = Date.now(); speichereEntwurf();
     if (letzte) {
       sitzung.ende = Date.now(); speichereSitzung(); stopTick();
-      screen = 'fertig';
+      screen = 'fertig'; pauseStart = null;
     } else {
-      pauseStart = cur.aktivEnde; screen = i + 1; phase = 'vorschau';
+      pauseStart = Date.now(); screen = i + 1; phase = 'vorschau';
     }
     render(); window.scrollTo(0, 0);
   };
@@ -221,7 +330,8 @@ function zeilenAusEintraegen(quelle) {
     if (!r && !e.gewicht && !aktivSek(e)) return '';
     const name = esc(step.u.name) + (step.seite ? ` <span class="seite-klein">· ${esc(step.seite)}</span>` : '');
     const g = e.gewicht ? ` <small>· ${esc(e.gewicht)} kg</small>` : '';
-    const z = aktivSek(e) ? ` <small>· ${fmtZeit(aktivSek(e) * 1000)}</small>` : '';
+    const zt = satzZeiten(e);
+    const z = zt.length ? ` <small>· ${zt.join(' / ')}</small>` : (aktivSek(e) ? ` <small>· ${fmtZeit(aktivSek(e) * 1000)}</small>` : '');
     return `<div class="zeile-uebung"><span class="n">${name}</span><span class="w">${esc(r || '–')}${g}${z}</span></div>`;
   }).join('');
 }
@@ -229,16 +339,18 @@ function zeilenAusEintraegen(quelle) {
 function gesamtZeile(s) {
   if (!s || !s.start || !s.ende) return '';
   const gesamt = s.ende - s.start;
+  const warm = aufwaermMs(s);
   let aktiv = 0;
   for (const step of STEPS) aktiv += aktivSek((s.eintraege || s)[step.key] || {}) * 1000;
-  const pause = Math.max(0, gesamt - aktiv);
-  return `<div class="zeiten"><span>Gesamt <b>${fmtZeit(gesamt)}</b></span><span>Aktiv <b>${fmtZeit(aktiv)}</b></span><span>Pause <b>${fmtZeit(pause)}</b></span></div>`;
+  const pause = Math.max(0, gesamt - warm - aktiv);
+  const warmSpan = warm ? `<span>Aufwärmen <b>${fmtZeit(warm)}</b></span>` : '';
+  return `<div class="zeiten"><span>Gesamt <b>${fmtZeit(gesamt)}</b></span>${warmSpan}<span>Aktiv <b>${fmtZeit(aktiv)}</b></span><span>Pause <b>${fmtZeit(pause)}</b></span></div>`;
 }
 
 function renderFertig() {
   const zeilen = zeilenAusEintraegen(eintraege) || '<p class="muster">Nichts eingetragen.</p>';
   const zeiten = sitzung.start && sitzung.ende
-    ? gesamtZeile({ start: sitzung.start, ende: sitzung.ende, eintraege }) : '';
+    ? gesamtZeile({ start: sitzung.start, aufwaermEnde: sitzung.aufwaermEnde, ende: sitzung.ende, eintraege }) : '';
   app.appendChild(el(`<div class="screen">
     <div class="fertig-kopf"><div class="haken">✓</div><h1 style="margin:6px 0">Einheit fertig</h1></div>
     ${zeiten}
@@ -251,10 +363,10 @@ function renderFertig() {
   document.getElementById('zurueck').onclick = () => { screen = STEPS.length - 1; phase = 'aktiv'; render(); };
   document.getElementById('speichern').onclick = () => {
     const log = ladeLog();
-    log.push({ datum: new Date().toISOString().slice(0, 10), start: sitzung.start, ende: sitzung.ende, eintraege });
+    log.push({ datum: new Date().toISOString().slice(0, 10), start: sitzung.start, aufwaermEnde: sitzung.aufwaermEnde, ende: sitzung.ende, eintraege });
     speichereLog(log);
     eintraege = {}; localStorage.removeItem('kraftsport_entwurf');
-    sitzung = { start: null, ende: null }; localStorage.removeItem('kraftsport_sitzung');
+    sitzung = { start: null, aufwaermEnde: null, ende: null }; localStorage.removeItem('kraftsport_sitzung');
     screen = 'verlauf'; render();
   };
 }
@@ -263,9 +375,11 @@ function renderFertig() {
 function sessionText(s) {
   let t = 'Kraftsport — ' + dDe(s.datum) + '\n';
   if (s.start && s.ende) {
+    t += 'Zeit: ' + hhmm(s.start) + '–' + hhmm(s.ende) + '\n';
     let aktiv = 0; for (const step of STEPS) aktiv += aktivSek((s.eintraege || {})[step.key] || {}) * 1000;
-    const gesamt = s.ende - s.start;
-    t += 'Gesamtzeit: ' + fmtZeit(gesamt) + ' · Aktiv: ' + fmtZeit(aktiv) + ' · Pause: ' + fmtZeit(Math.max(0, gesamt - aktiv)) + '\n';
+    const gesamt = s.ende - s.start; const warm = aufwaermMs(s);
+    t += 'Gesamtzeit: ' + fmtZeit(gesamt) + (warm ? ' · Aufwärmen: ' + fmtZeit(warm) : '')
+      + ' · Aktiv: ' + fmtZeit(aktiv) + ' · Pause: ' + fmtZeit(Math.max(0, gesamt - warm - aktiv)) + '\n';
   }
   for (const step of STEPS) {
     const e = (s.eintraege || {})[step.key] || {};
