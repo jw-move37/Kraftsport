@@ -5,9 +5,10 @@
 // Pro Übung wird JEDER Satz einzeln gestoppt: "Start" beginnt die Wiederholungs-
 // phase, "Stop" beendet sie (die Satzzeit steht fest), danach die Wiederholungen
 // eintippen. Die Zeit zwischen Stop und dem nächsten Start (auch Gewicht-Eintippen)
-// zählt als Pause. Gewicht einmal pro Übung, vorbelegt aus dem letzten Trainingstag.
-// Am Ende: Gesamtzeit inkl. Aufwärmen, Aufwärmzeit separat, Aktiv (Summe der Sätze),
-// Pause als Rest.
+// zählt als Pause. Gewicht einmal pro Übung (je Hantel), vorbelegt aus dem letzten
+// Trainingstag. Mit ◀ ▶ frei zwischen den Übungen wechseln; nach "Fertig" jede Übung
+// per Tipp nachbearbeiten. Gelöschte Einheiten wandern in den Papierkorb (7 Tage).
+// Testlauf-Schalter: alles durchspielen, ohne dass etwas gespeichert wird.
 
 const UEBUNGEN = [
   { id: 'goblet', name: 'Goblet Squat', muster: 'Knie, bilateral',
@@ -19,7 +20,7 @@ const UEBUNGEN = [
   // Bulgarian Split Squat ist archiviert (Bilder bleiben unter bilder/bulgarian-*.png) und kann jederzeit zurückgeholt werden.
   { id: 'ausfall', name: 'Rückwärts-Ausfallschritt (Reverse Lunge)', muster: 'Knie, unilateral',
     ziel: '3 × 8–12', pause: '75 s', gewicht: '12–14 kg/Hand',
-    cues: ['Schritt nach hinten setzen', 'Hinteres Knie Richtung Boden senken', 'Vorderes Knie über dem Fuß, Oberkörper aufrecht'] },
+    cues: ['Schritt nach hinten setzen', 'Hinteres Knie Richtung Boden senken', 'Vorderes Knie über dem Fuß, Oberkörper aufrecht', 'Abwechselnd links/rechts — jeder Schritt zählt 1 Wdh'] },
   { id: 'rudern', name: 'Rudern zweiarmig vorgebeugt', muster: 'Zug horizontal',
     ziel: '3 × 8–12', pause: '75 s', gewicht: '14–16 kg/Hand',
     cues: ['Etwa 45° vorgebeugt', 'Hanteln zur Hüfte ziehen', 'Ellbogen nah am Körper'] },
@@ -57,15 +58,26 @@ let phase = 'vorschau';   // bei <index>: 'vorschau' | 'aktiv'
 let pauseStart = null;    // ms, Beginn der laufenden Pause (Rest zwischen Sätzen/Übungen)
 let laufStart = null;     // ms, Beginn des gerade laufenden Satzes (sonst null)
 let ticker = null;
+let testlauf = false;     // Testlauf: durchspielen, ohne dass etwas gespeichert wird
+let ausFertig = false;    // eine Übung aus der Übersicht heraus nachbearbeiten
 
 let eintraege = ladeJSON('kraftsport_entwurf', {});
 let sitzung = ladeJSON('kraftsport_sitzung', { start: null, aufwaermEnde: null, ende: null });
 
 function ladeJSON(k, fallback) { try { return JSON.parse(localStorage.getItem(k)) || fallback; } catch (e) { return fallback; } }
-function speichereEntwurf() { localStorage.setItem('kraftsport_entwurf', JSON.stringify(eintraege)); }
-function speichereSitzung() { localStorage.setItem('kraftsport_sitzung', JSON.stringify(sitzung)); }
+function speichereEntwurf() { if (!testlauf) localStorage.setItem('kraftsport_entwurf', JSON.stringify(eintraege)); }
+function speichereSitzung() { if (!testlauf) localStorage.setItem('kraftsport_sitzung', JSON.stringify(sitzung)); }
 function ladeLog() { try { return JSON.parse(localStorage.getItem('kraftsport_log')) || []; } catch (e) { return []; } }
 function speichereLog(log) { localStorage.setItem('kraftsport_log', JSON.stringify(log)); }
+function ladePapierkorb() { try { return JSON.parse(localStorage.getItem('kraftsport_papierkorb')) || []; } catch (e) { return []; } }
+function speicherePapierkorb(pk) { localStorage.setItem('kraftsport_papierkorb', JSON.stringify(pk)); }
+// Papierkorb: gelöschte Einheiten 7 Tage aufbewahren, dann endgültig entfernen.
+function purgePapierkorb() {
+  const grenze = Date.now() - 7 * 86400000;
+  const pk = ladePapierkorb().filter((s) => (s.geloeschtAm || 0) > grenze);
+  speicherePapierkorb(pk);
+  return pk;
+}
 function dDe(iso) { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}.${m[2]}.${m[1]}` : iso; }
 
 function el(html) { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; }
@@ -142,6 +154,7 @@ function updateTimers() {
 
 function render() {
   app.innerHTML = '';
+  if (testlauf) app.appendChild(el('<div class="testbanner">TESTLAUF – es wird nichts gespeichert</div>'));
   if (screen === 'start') return renderStart();
   if (screen === 'aufwaermen') return renderAufwaermen();
   if (screen === 'fertig') return renderFertig();
@@ -162,12 +175,14 @@ function renderStart() {
     </div>
     <p>Zuerst Aufwärmen, dann jede Übung Satz für Satz mit Start/Stop.</p>
     <div><button class="btn-gross" id="los">Training starten</button></div>
+    <label class="testtoggle"><input type="checkbox" id="testlauf-cb"${testlauf ? ' checked' : ''}> Testlauf – nur durchspielen, nichts speichern</label>
     ${verlaufBtn}
   </div>`));
+  document.getElementById('testlauf-cb').onchange = (e) => { testlauf = e.target.checked; render(); };
   document.getElementById('los').onclick = () => {
     eintraege = {}; speichereEntwurf();
     sitzung = { start: Date.now(), aufwaermEnde: null, ende: null }; speichereSitzung();
-    screen = 'aufwaermen'; phase = 'vorschau'; pauseStart = null; laufStart = null;
+    screen = 'aufwaermen'; phase = 'vorschau'; pauseStart = null; laufStart = null; ausFertig = false;
     startTick(); render();
   };
   const v = document.getElementById('verlauf');
@@ -220,7 +235,7 @@ function renderVorschau(i, step, u, e) {
     </div>
   </div>`));
   updateTimers();
-  document.getElementById('zurueck').onclick = () => { screen = i === 0 ? 'start' : i - 1; phase = 'vorschau'; render(); window.scrollTo(0, 0); };
+  document.getElementById('zurueck').onclick = () => { screen = i === 0 ? 'start' : i - 1; phase = i === 0 ? 'vorschau' : 'aktiv'; render(); window.scrollTo(0, 0); };
   document.getElementById('starten').onclick = () => { phase = 'aktiv'; render(); window.scrollTo(0, 0); };
 }
 
@@ -261,15 +276,22 @@ function renderAktiv(i, step, u) {
   const cap = running ? '<div class="bigcap aktiv-cap">Satz läuft</div>'
     : (pauseStart ? '<div class="bigcap pause-cap">Pause</div>' : '<div class="bigcap">&nbsp;</div>');
 
+  const bottom = ausFertig ? '✓ Zurück zur Übersicht' : (letzte ? 'Training fertig' : 'Weiter zur nächsten Übung');
+
   app.appendChild(el(`<div class="screen aktiv">
+    <div class="navkopf">
+      <button class="nav-pfeil" id="nav-prev"${i === 0 ? ' disabled' : ''}>◀</button>
+      <span class="nav-mitte">Übung ${i + 1} / ${STEPS.length}</span>
+      <button class="nav-pfeil" id="nav-next"${i === STEPS.length - 1 ? ' disabled' : ''}>▶</button>
+    </div>
     <div class="bigtimer" id="bigt">0:00</div>
     ${cap}
     <div class="aktiv-name">${esc(u.name)}</div>
     <div class="block-eingabe">
-      <div class="feld feld-gross"><label>Gewicht (kg)</label><input id="gew" inputmode="decimal" value="${esc(gewVal)}" placeholder="kg"></div>
+      <div class="feld feld-gross"><label>Gewicht je Hantel (kg)</label><input id="gew" inputmode="decimal" value="${esc(gewVal)}" placeholder="kg"></div>
       <div class="saetze-liste">${reihen}</div>
     </div>
-    <button class="btn-beenden" id="beenden"${running ? ' disabled' : ''}>${letzte ? 'Training fertig' : 'Weiter zur nächsten Übung'}</button>
+    <button class="btn-beenden" id="beenden"${running ? ' disabled' : ''}>${bottom}</button>
   </div>`));
   updateTimers();
 
@@ -285,6 +307,12 @@ function renderAktiv(i, step, u) {
   const g = document.getElementById('gew');
   if (g) g.oninput = sichern;
   for (const x of app.querySelectorAll('.wdh')) x.oninput = sichern;
+
+  // Frei zwischen den Übungen wechseln (Werte bleiben erhalten, weil laufend gespeichert).
+  const navPrev = document.getElementById('nav-prev');
+  if (navPrev) navPrev.onclick = () => { sichern(); if (i > 0) { screen = i - 1; phase = 'aktiv'; render(); window.scrollTo(0, 0); } };
+  const navNext = document.getElementById('nav-next');
+  if (navNext) navNext.onclick = () => { sichern(); if (i < STEPS.length - 1) { screen = i + 1; phase = 'aktiv'; render(); window.scrollTo(0, 0); } };
 
   const startBtn = document.getElementById('start');
   if (startBtn) startBtn.onclick = () => {
@@ -305,6 +333,7 @@ function renderAktiv(i, step, u) {
   };
   document.getElementById('beenden').onclick = () => {
     sichern();
+    if (ausFertig) { ausFertig = false; screen = 'fertig'; render(); window.scrollTo(0, 0); return; }
     if (letzte) {
       sitzung.ende = Date.now(); speichereSitzung(); stopTick();
       screen = 'fertig'; pauseStart = null;
@@ -323,8 +352,8 @@ function kopf(i) {
   </div>`;
 }
 
-function zeilenAusEintraegen(quelle) {
-  return STEPS.map((step) => {
+function zeilenAusEintraegen(quelle, editierbar) {
+  return STEPS.map((step, i) => {
     const e = (quelle || {})[step.key] || {};
     const r = wdhText(e);
     if (!r && !e.gewicht && !aktivSek(e)) return '';
@@ -332,7 +361,9 @@ function zeilenAusEintraegen(quelle) {
     const g = e.gewicht ? ` <small>· ${esc(e.gewicht)} kg</small>` : '';
     const zt = satzZeiten(e);
     const z = zt.length ? ` <small>· ${zt.join(' / ')}</small>` : (aktivSek(e) ? ` <small>· ${fmtZeit(aktivSek(e) * 1000)}</small>` : '');
-    return `<div class="zeile-uebung"><span class="n">${name}</span><span class="w">${esc(r || '–')}${g}${z}</span></div>`;
+    const attr = editierbar ? ` data-edit="${i}"` : '';
+    const cls = 'zeile-uebung' + (editierbar ? ' editierbar' : '');
+    return `<div class="${cls}"${attr}><span class="n">${name}</span><span class="w">${esc(r || '–')}${g}${z}</span></div>`;
   }).join('');
 }
 
@@ -348,20 +379,30 @@ function gesamtZeile(s) {
 }
 
 function renderFertig() {
-  const zeilen = zeilenAusEintraegen(eintraege) || '<p class="muster">Nichts eingetragen.</p>';
+  const zeilen = zeilenAusEintraegen(eintraege, true) || '<p class="muster">Nichts eingetragen.</p>';
   const zeiten = sitzung.start && sitzung.ende
     ? gesamtZeile({ start: sitzung.start, aufwaermEnde: sitzung.aufwaermEnde, ende: sitzung.ende, eintraege }) : '';
   app.appendChild(el(`<div class="screen">
     <div class="fertig-kopf"><div class="haken">✓</div><h1 style="margin:6px 0">Einheit fertig</h1></div>
     ${zeiten}
+    <p class="tipp">Tippe auf eine Übung, um Gewicht oder Wiederholungen zu ändern.</p>
     <div class="summe">${zeilen}</div>
     <div class="knoepfe">
       <button class="btn-zurueck" id="zurueck">Zurück</button>
-      <button class="btn-weiter" id="speichern">Speichern</button>
+      <button class="btn-weiter" id="speichern">${testlauf ? 'Testlauf beenden' : 'Speichern'}</button>
     </div>
   </div>`));
+  for (const row of app.querySelectorAll('.zeile-uebung.editierbar')) {
+    row.onclick = () => { ausFertig = true; screen = Number(row.dataset.edit); phase = 'aktiv'; render(); window.scrollTo(0, 0); };
+  }
   document.getElementById('zurueck').onclick = () => { screen = STEPS.length - 1; phase = 'aktiv'; render(); };
   document.getElementById('speichern').onclick = () => {
+    if (testlauf) {
+      // Testlauf: nichts in den Verlauf schreiben, alles wieder auf Anfang.
+      eintraege = {}; sitzung = { start: null, aufwaermEnde: null, ende: null };
+      screen = 'start'; render();
+      return;
+    }
     const log = ladeLog();
     log.push({ datum: new Date().toISOString().slice(0, 10), start: sitzung.start, aufwaermEnde: sitzung.aufwaermEnde, ende: sitzung.ende, eintraege });
     speichereLog(log);
@@ -407,20 +448,32 @@ async function exportieren(name, text) {
 function renderVerlauf() {
   stopTick();
   const log = ladeLog();
+  const pk = purgePapierkorb();
   const karten = [...log].reverse().map((s, ri) => {
     const idx = log.length - 1 - ri;
     const zeiten = gesamtZeile(s);
     const zeilen = zeilenAusEintraegen(s.eintraege) || '<p class="muster">Keine Einträge.</p>';
     return `<div class="session">
-      <div class="session-kopf"><b>${dDe(s.datum)}</b><button class="loesch" data-i="${idx}" title="löschen">✕</button></div>
+      <div class="session-kopf"><b>${dDe(s.datum)}</b><button class="loesch" data-i="${idx}" title="in den Papierkorb">✕</button></div>
       ${zeiten}
       ${zeilen}
     </div>`;
   }).join('') || '<p class="muster">Noch keine gespeicherte Einheit.</p>';
 
+  const pkHtml = pk.length ? `<div class="papierkorb">
+    <div class="pk-titel">Papierkorb <small>· wird nach 7 Tagen endgültig gelöscht</small></div>
+    ${[...pk].map((s, i) => i).reverse().map((i) => {
+      const s = pk[i];
+      const tage = Math.max(0, Math.ceil((s.geloeschtAm + 7 * 86400000 - Date.now()) / 86400000));
+      return `<div class="pk-zeile"><span>${dDe(s.datum)} <small>· noch ${tage} Tg</small></span>
+        <span class="pk-akt"><button class="pk-wieder" data-i="${i}">Zurückholen</button><button class="pk-weg" data-i="${i}" title="endgültig löschen">✕</button></span></div>`;
+    }).join('')}
+  </div>` : '';
+
   app.appendChild(el(`<div class="top"><div class="zeile"><span class="titel">Verlauf</span><span class="zaehler">${log.length} Einheit${log.length === 1 ? '' : 'en'}</span></div></div>`));
   app.appendChild(el(`<div class="screen">
     <div class="verlauf">${karten}</div>
+    ${pkHtml}
     <div class="knoepfe"><button class="btn-weiter" id="zurueck">Zurück</button></div>
     ${log.length ? `<button class="btn-export" id="export">Exportieren</button>
     <div class="export-wahl" id="export-wahl" hidden>
@@ -438,12 +491,33 @@ function renderVerlauf() {
     document.getElementById('exp-neueste').onclick = () => { const s = log[log.length - 1]; exportieren('Kraft_' + s.datum + '.txt', sessionText(s)); };
     document.getElementById('exp-alle').onclick = () => { exportieren('Kraft_alle_' + new Date().toISOString().slice(0, 10) + '.txt', allesText(log)); };
   }
+  // Löschen = in den Papierkorb legen (7 Tage rückholbar).
   for (const b of app.querySelectorAll('.loesch')) {
     b.onclick = () => {
-      if (!confirm('Diese Einheit löschen?')) return;
-      const log2 = ladeLog(); log2.splice(Number(b.dataset.i), 1); speichereLog(log2); render();
+      if (!confirm('Diese Einheit in den Papierkorb legen?')) return;
+      const log2 = ladeLog();
+      const weg = log2.splice(Number(b.dataset.i), 1)[0];
+      speichereLog(log2);
+      if (weg) { const pk2 = ladePapierkorb(); weg.geloeschtAm = Date.now(); pk2.push(weg); speicherePapierkorb(pk2); }
+      render();
+    };
+  }
+  for (const b of app.querySelectorAll('.pk-wieder')) {
+    b.onclick = () => {
+      const pk2 = ladePapierkorb();
+      const s = pk2.splice(Number(b.dataset.i), 1)[0];
+      speicherePapierkorb(pk2);
+      if (s) { delete s.geloeschtAm; const log2 = ladeLog(); log2.push(s); log2.sort((a, c) => (a.datum < c.datum ? -1 : 1)); speichereLog(log2); }
+      render();
+    };
+  }
+  for (const b of app.querySelectorAll('.pk-weg')) {
+    b.onclick = () => {
+      if (!confirm('Endgültig löschen? Das lässt sich nicht rückgängig machen.')) return;
+      const pk2 = ladePapierkorb(); pk2.splice(Number(b.dataset.i), 1); speicherePapierkorb(pk2); render();
     };
   }
 }
 
+purgePapierkorb();
 render();
