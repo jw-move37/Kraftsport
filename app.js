@@ -191,7 +191,7 @@ function renderStart() {
 
 function renderAufwaermen() {
   app.appendChild(el(`<div class="screen aktiv">
-    <div class="bigtimer" id="bigt">0:00</div>
+    <div class="bigtimer" id="warmuhr">0:00</div>
     <div class="bigcap aktiv-cap">Aufwärmen läuft</div>
     <div class="aktiv-name" style="margin-top:20px">Warm werden</div>
     <p class="hinweis">5 min: locker einlaufen, Bein-/Hüft-/Armkreisen, ein paar Kniebeugen ohne Gewicht.</p>
@@ -288,7 +288,7 @@ function renderAktiv(i, step, u) {
     ${cap}
     <div class="aktiv-name">${esc(u.name)}</div>
     <div class="block-eingabe">
-      <div class="feld feld-gross"><label>Gewicht je Hantel (kg)</label><input id="gew" inputmode="decimal" value="${esc(gewVal)}" placeholder="kg"></div>
+      ${hatGewicht(u) ? `<div class="feld feld-gross"><label>Gewicht je Hantel (kg)</label><input id="gew" inputmode="decimal" value="${esc(gewVal)}" placeholder="kg"></div>` : ''}
       <div class="saetze-liste">${reihen}</div>
     </div>
     <button class="btn-beenden" id="beenden"${running ? ' disabled' : ''}>${bottom}</button>
