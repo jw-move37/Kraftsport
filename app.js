@@ -427,7 +427,9 @@ function sessionText(s) {
     const r = wdhText(e);
     if (!r && !e.gewicht) continue;
     const name = step.u.name + (step.seite ? ' (' + step.seite + ')' : '');
-    t += '- ' + name + ': ' + (r || '–') + (e.gewicht ? ' · ' + e.gewicht + ' kg' : '') + '\n';
+    const zt = satzZeiten(e);
+    t += '- ' + name + ': ' + (r || '–') + (e.gewicht ? ' · ' + e.gewicht + ' kg' : '')
+      + (zt.length ? ' · Sätze ' + zt.join(' / ') : '') + '\n';
   }
   return t;
 }
