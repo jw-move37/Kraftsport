@@ -8,6 +8,9 @@
   --gut: #46c787;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* Scrollbar-Platz immer reservieren: sonst springt der zentrierte Inhalt (#app, margin:auto)
+   beim Erscheinen/Verschwinden der Scrollbar horizontal — das „Bild rutscht nach links". */
+html { scrollbar-gutter: stable; }
 html, body { margin: 0; height: 100%; }
 body {
   background: var(--bg); color: var(--text);

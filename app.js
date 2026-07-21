@@ -329,7 +329,10 @@ function renderAktiv(i, step, u) {
     e.laufStart = null; laufStart = null;
     pauseStart = Date.now();   // Rest bis zum nächsten Start (inkl. Wiederholungen/Gewicht eintippen)
     eintraege[step.key] = e; speichereEntwurf();
-    render(); window.scrollTo(0, 0);
+    render();
+    // Direkt ins Wiederholungs-Feld des gerade beendeten Satzes (Tastatur geht auf).
+    const feld = idx !== -1 ? document.querySelector('.wdh[data-k="' + idx + '"]') : null;
+    if (feld) { feld.focus(); if (feld.select) feld.select(); } else window.scrollTo(0, 0);
   };
   document.getElementById('beenden').onclick = () => {
     sichern();
